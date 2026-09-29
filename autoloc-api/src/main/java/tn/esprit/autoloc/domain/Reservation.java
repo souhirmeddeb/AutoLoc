@@ -17,13 +17,19 @@ public class Reservation {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long idReservation;
 
-    @Column(nullable = false)
     private LocalDate dateDebut;
 
-    @Column(nullable = false)
     private LocalDate dateFin;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
     private StatutReservation statut;
+
+    @ManyToOne(cascade = CascadeType.ALL)
+    private Client client;
+
+    @ManyToOne(cascade = CascadeType.ALL)
+    private Vehicule vehicule;
+
+    @OneToOne(cascade = CascadeType.ALL)
+    private Contrat contrat;
 }

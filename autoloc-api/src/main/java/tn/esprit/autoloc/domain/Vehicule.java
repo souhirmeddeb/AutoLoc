@@ -1,12 +1,10 @@
 package tn.esprit.autoloc.domain;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.math.BigDecimal;
+import java.util.Set;
 
 @Entity
 @Table(name = "vehicule")
@@ -20,23 +18,38 @@ public class Vehicule {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long idVehicule;
 
-    @Column(nullable = false, unique = true, length = 20)
     private String immatriculation;
 
-    @Column(nullable = false, length = 50)
     private String marque;
 
-    @Column(nullable = false, length = 50)
     private String modele;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
     private CategorieVehicule categorie;
 
-    @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal tarifJournalier;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
     private StatutVehicule statut;
+
+    // Agence 1 ---- * Vehicule
+    @ManyToOne(cascade = CascadeType.ALL)
+    private Agence agence;
+
+    // Vehicule 1 ---- * Maintenance
+    @OneToMany(cascade = CascadeType.ALL, mappedBy = "vehicule")
+    private Set<Maintenance> maintenances;
+
+    // Vehicule * ---- * Equipement
+    @ManyToMany(cascade = CascadeType.ALL)
+    @JoinTable(
+            name = "vehicule_equipement",
+            joinColumns = @JoinColumn(name = "id_vehicule"),
+            inverseJoinColumns = @JoinColumn(name = "id_equipement")
+    )
+    private Set<Equipement> equipements;
+
+    // Vehicule 1 ---- * Reservation
+    @OneToMany(cascade = CascadeType.ALL, mappedBy = "vehicule")
+    private Set<Reservation> reservations;
 }
