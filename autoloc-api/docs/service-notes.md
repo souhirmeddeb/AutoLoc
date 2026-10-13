@@ -2,87 +2,112 @@
 
 ## A. Modes d'injection
 
-L'injection par constructeur rend les dépendances visibles et permet d'utiliser des champs `final`. Elle facilite les tests et la maintenance. L'injection par attribut rend les dépendances moins explicites.
+L'injection de dépendances permet à Spring de fournir automatiquement les objets nécessaires à une classe.
+
+- **Injection par attribut (`@Autowired`) :** la dépendance est injectée directement dans un attribut. Cette méthode rend les dépendances moins visibles et ne permet pas de déclarer facilement les attributs `final`.
+- **Injection par constructeur :** les dépendances sont fournies au moment de la création de l'objet. Cette méthode rend les dépendances explicites, facilite les tests et permet d'utiliser des attributs `final`.
+
 ### Anomalie détectée par SonarQube
 
 - **Fichier :** `ContratServiceImpl.java`
-- **Message :** Remove this field injection and use constructor injection instead.
-- **Cause :** `@Autowired` injecte le repository directement dans l'attribut.
-- **Correction :** utiliser l'injection par constructeur avec `@RequiredArgsConstructor` et `private final IContratRepository contratRepository`.
-## B. Services
+- **Message :** `Remove this field injection and use constructor injection instead.`
+- **Cause :** le repository était injecté directement dans un attribut avec `@Autowired`.
+- **Correction :** remplacer l'injection par attribut par l'injection par constructeur, en utilisant `@RequiredArgsConstructor` et un attribut `private final IContratRepository contratRepository`.
 
-Tous les services utilisent l'injection par constructeur avec `@RequiredArgsConstructor` et un repository déclaré `private final`.
+## B. Services et dépendances
 
-| Service | Dépendance |
+Les neuf services utilisent l'injection par constructeur avec `@RequiredArgsConstructor`. Chaque implémentation déclare son repository avec `private final`, ce qui permet à Lombok de générer le constructeur nécessaire à l'injection.
+
+| Service | Dépendance injectée |
 |---|---|
-| AgenceServiceImpl | IAgenceRepository |
-| EmployeServiceImpl | IEmployeRepository |
-| VehiculeServiceImpl | IVehiculeRepository |
-| EquipementServiceImpl | IEquipementRepository |
-| ClientServiceImpl | IClientRepository |
-| ReservationServiceImpl | IReservationRepository |
-| ContratServiceImpl | IContratRepository |
-| PaiementServiceImpl | IPaiementRepository |
-| MaintenanceServiceImpl | IMaintenanceRepository |
+| `AgenceServiceImpl` | `IAgenceRepository` |
+| `EmployeServiceImpl` | `IEmployeRepository` |
+| `VehiculeServiceImpl` | `IVehiculeRepository` |
+| `EquipementServiceImpl` | `IEquipementRepository` |
+| `ClientServiceImpl` | `IClientRepository` |
+| `ReservationServiceImpl` | `IReservationRepository` |
+| `ContratServiceImpl` | `IContratRepository` |
+| `PaiementServiceImpl` | `IPaiementRepository` |
+| `MaintenanceServiceImpl` | `IMaintenanceRepository` |
 
-## C. Messages d'erreur
+## C. Compréhension des erreurs Spring
 
-Trois erreurs fréquentes pendant le développement :
+### 1. Bean de service introuvable
 
-1. **Erreur de compilation :** méthode non implémentée ou signature incorrecte dans une interface de service.  
-   **Cause :** la méthode définie dans l'implémentation ne correspond pas à celle de l'interface.  
-   **Correction :** vérifier les signatures des méthodes et les annotations `@Override`.
+**Message :** Spring ne trouve aucun bean correspondant à `IContratService`.
 
-2. **Erreur d'injection de dépendances :** bean introuvable au démarrage.  
-   **Cause :** service ou repository non détecté par Spring, ou dépendance mal déclarée.  
-   **Correction :** vérifier `@Service`, `@Repository`, le component scanning et l'injection par constructeur.
+- **Causes possibles :** l'implémentation `ContratServiceImpl` ne porte pas `@Service`, ou son package n'est pas couvert par le component scanning.
+- **Corrections :** vérifier la présence de `@Service`, le package de la classe principale Spring Boot et l'emplacement de l'implémentation.
 
-3. **Erreur de base de données :** problème lors de l'accès aux données.  
-   **Cause :** configuration incorrecte de la base de données ou incompatibilité entre les entités et le schéma.  
-   **Correction :** vérifier `application.properties`, les identifiants de connexion et les mappings JPA.
+### 2. Plusieurs beans candidats
 
-*Remarque : ces erreurs sont des exemples courants ; elles ne sont pas confirmées comme ayant été rencontrées dans ce projet.*
+**Message :** Spring trouve deux beans candidats, par exemple `emailNotificateur` et `smsNotificateur`, pour une même dépendance.
+
+- **Cause :** plusieurs implémentations correspondent au type demandé et Spring ne sait pas laquelle choisir.
+- **Corrections possibles :**
+   - utiliser `@Primary` sur l'implémentation à privilégier par défaut ;
+   - utiliser `@Qualifier` sur le paramètre du constructeur pour désigner explicitement le bean souhaité.
+
+### 3. Dépendances circulaires
+
+**Message :** une dépendance circulaire existe entre `clientServiceImpl` et `reservationServiceImpl`.
+
+- **Cause :** chaque service dépend de l'autre, directement ou indirectement.
+- **Correction :** revoir la conception pour supprimer la dépendance circulaire, par exemple en déplaçant la logique commune dans un troisième service. L'injection par constructeur rend ce type de cycle explicite et ne le résout pas automatiquement.
+
+*Remarque : ces trois situations illustrent des erreurs Spring courantes. Elles ne doivent pas être présentées comme des erreurs effectivement rencontrées dans le projet si elles n'ont pas été observées dans les journaux.*
 
 ## D. SonarQube for IDE
 
-### Anomalie 1 : injection par attribut
+### Anomalie 1 — Injection par attribut
 
 - **Fichier :** `ContratServiceImpl.java`
-- **Message SonarQube :** Remove this field injection and use constructor injection instead.
-- **Cause :** L'utilisation de `@Autowired` directement sur l'attribut rend l'injection moins recommandée.
-- **Correction :** Utiliser l'injection par constructeur avec `@RequiredArgsConstructor` et `private final IContratRepository contratRepository`.
+- **Message SonarQube :** `Remove this field injection and use constructor injection instead.`
+- **Cause :** l'utilisation de `@Autowired` directement sur le repository.
+- **Correction :** utiliser `@RequiredArgsConstructor` et déclarer le repository en `private final`.
 
-### Anomalie 2 : import inutilisé
+Cette anomalie a été observée pendant l'expérience d'injection par attribut, puis corrigée en restaurant l'injection par constructeur.
 
-- **Fichier :** `ContratServiceImpl.java`
-- **Message SonarQube :** Remove this unused import 'lombok.RequiredArgsConstructor'.
-- **Cause :** L'import est resté après la suppression temporaire de l'annotation `@RequiredArgsConstructor`.
-- **Correction :** Supprimer l'import s'il n'est pas utilisé, ou le conserver si l'annotation est rétablie.
-
-### Anomalie 3 : exception générique
+### Anomalie 2 — Import inutilisé
 
 - **Fichier :** `ContratServiceImpl.java`
-- **Observation :** Le remplacement temporaire de `ResourceNotFoundException` par `RuntimeException` n'a pas généré d'alerte dans l'analyse effectuée.
-- **Correction :** Conserver `ResourceNotFoundException` pour signaler explicitement qu'un contrat est introuvable.
+- **Message SonarQube :** `Remove this unused import 'lombok.RequiredArgsConstructor'.`
+- **Cause :** l'import de Lombok était conservé alors que l'annotation `@RequiredArgsConstructor` avait été temporairement retirée.
+- **Correction :** supprimer l'import lorsqu'il est inutilisé, ou le conserver lorsque l'annotation est présente.
+
+Cette anomalie était liée à une modification temporaire. Elle ne doit pas être comptée comme une anomalie persistante si l'import est maintenant utilisé.
+
+### Anomalie 3 — Gestion des exceptions
+
+Le remplacement temporaire de `ResourceNotFoundException` par `RuntimeException` n'a pas produit d'alerte dans l'analyse SonarQube effectuée.
+
+Il ne s'agit donc pas d'une anomalie SonarQube confirmée. La correction retenue consiste à conserver `ResourceNotFoundException` afin de signaler explicitement l'absence d'un contrat lors d'une recherche par identifiant.
+
+*Bilan : deux anomalies SonarQube ont été observées pendant les expérimentations. La troisième entrée documente un choix de conception, et non une alerte détectée. Pour présenter trois anomalies détectées, il faut identifier une troisième alerte réelle dans SonarQube.*
 
 ## E. Questions de compréhension
 
-### 1. Où est le `new` de ContratServiceImpl et qui l'exécute ?
+### 1. Où se trouve le `new` de `ContratServiceImpl` et qui l'exécute ?
 
-Spring crée le service et gère ses dépendances dans le conteneur IoC.
+Dans une application Spring, le conteneur IoC crée et gère les instances des classes déclarées comme beans. Spring instancie `ContratServiceImpl` et lui fournit les dépendances nécessaires. Le code applicatif n'a donc généralement pas besoin d'écrire explicitement `new ContratServiceImpl(...)`.
 
-### 2. Pourquoi le contrôleur dépend-il de IContratService ?
+### 2. Pourquoi le contrôleur dépend-il de `IContratService` plutôt que de `ContratServiceImpl` ?
 
-Pour réduire le couplage et permettre de changer l'implémentation.
+Le contrôleur dépend de l'interface afin de réduire le couplage avec l'implémentation concrète. Cela permet de remplacer l'implémentation sans modifier le contrôleur, tant que le contrat défini par l'interface est respecté.
 
-### 3. Pourquoi un service singleton doit-il rester sans état ?
+### 3. Pourquoi un service singleton doit-il rester sans état mutable lié à une requête ?
 
-Pour éviter que plusieurs requêtes partagent et modifient des données temporaires, ce qui peut provoquer des conflits.
+Spring utilise généralement le scope singleton pour les services. Une même instance peut donc être utilisée par plusieurs requêtes simultanément. Stocker des données temporaires propres à une requête dans des attributs modifiables du service peut provoquer des conflits entre requêtes. Les données propres à chaque opération doivent rester dans des variables locales ou dans des objets adaptés.
 
-### 4. Pourquoi update charge-t-il l'entité existante avant save ?
+### 4. Pourquoi la méthode `update` charge-t-elle l'entité existante avant d'appeler `save` ?
 
-Pour vérifier que l'entité existe puis modifier ses attributs sans remplacer directement l'entité persistante.
+La méthode recherche d'abord l'entité pour vérifier qu'elle existe. Elle modifie ensuite ses attributs et sauvegarde les changements. Cette approche évite de traiter une entité inexistante comme une mise à jour valide et permet de préserver les attributs qui ne doivent pas être modifiés.
 
-### 5. Quelle différence entre `@Component` et `@Bean`, entre `@Primary` et `@Qualifier` ? Pourquoi Paiement est-il en lecture seule ?
+### 5. Quelle est la différence entre `@Component` et `@Bean`, entre `@Primary` et `@Qualifier` ? Pourquoi `IPaiementService` est-il en lecture seule ?
 
-`@Component` marque une classe détectée par Spring. `@Bean` déclare un objet via une méthode de configuration. `@Primary` définit le candidat prioritaire et `@Qualifier` sélectionne un candidat précis. Le service Paiement est en lecture seule : les opérations d'écriture passent par le Contrat.
+- **`@Component` :** annotation placée sur une classe pour permettre à Spring de la détecter automatiquement.
+- **`@Bean` :** annotation placée sur une méthode d'une classe de configuration ; l'objet retourné par cette méthode est enregistré dans le conteneur Spring.
+- **`@Primary` :** indique le bean à privilégier lorsqu'il existe plusieurs candidats compatibles.
+- **`@Qualifier` :** permet de sélectionner explicitement un bean particulier parmi plusieurs candidats.
+
+`IPaiementService` est en lecture seule parce que son interface expose uniquement les opérations de consultation. Les méthodes de création, de modification ou de suppression ne doivent pas être ajoutées sans justification fonctionnelle dans le périmètre de l'atelier.
