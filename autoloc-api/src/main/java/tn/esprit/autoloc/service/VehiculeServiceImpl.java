@@ -1,3 +1,4 @@
+
 package tn.esprit.autoloc.service;
 
 import java.math.BigDecimal;
@@ -5,16 +6,21 @@ import java.util.List;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import tn.esprit.autoloc.domain.Agence;
 import tn.esprit.autoloc.domain.Vehicule;
 import tn.esprit.autoloc.exception.ResourceNotFoundException;
+import tn.esprit.autoloc.repository.IAgenceRepository;
 import tn.esprit.autoloc.repository.IVehiculeRepository;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class VehiculeServiceImpl implements IVehiculeService {
 
     private final IVehiculeRepository vehiculeRepository;
+    private final IAgenceRepository agenceRepository;
 
     @Override
     public Vehicule create(Vehicule vehicule) {
@@ -24,10 +30,13 @@ public class VehiculeServiceImpl implements IVehiculeService {
         }
 
         verifierVehicule(vehicule);
+        associerAgenceExistante(vehicule);
+
         return vehiculeRepository.save(vehicule);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Vehicule findById(Long id) {
         return vehiculeRepository.findById(id)
                 .orElseThrow(() ->
@@ -35,6 +44,7 @@ public class VehiculeServiceImpl implements IVehiculeService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Vehicule> findAll() {
         return vehiculeRepository.findAll();
     }
@@ -51,7 +61,12 @@ public class VehiculeServiceImpl implements IVehiculeService {
         existant.setCategorie(vehicule.getCategorie());
         existant.setTarifJournalier(vehicule.getTarifJournalier());
         existant.setStatut(vehicule.getStatut());
-        existant.setAgence(vehicule.getAgence());
+
+        if (vehicule.getAgence() != null) {
+            associerAgenceExistante(vehicule);
+            existant.setAgence(vehicule.getAgence());
+        }
+
         existant.setEquipements(vehicule.getEquipements());
 
         return vehiculeRepository.save(existant);
@@ -64,6 +79,22 @@ public class VehiculeServiceImpl implements IVehiculeService {
         }
 
         vehiculeRepository.deleteById(id);
+    }
+
+    private void associerAgenceExistante(Vehicule vehicule) {
+        if (vehicule.getAgence() == null
+                || vehicule.getAgence().getIdAgence() == null) {
+            throw new IllegalArgumentException(
+                    "Une agence existante est obligatoire");
+        }
+
+        Long agenceId = vehicule.getAgence().getIdAgence();
+
+        Agence agence = agenceRepository.findById(agenceId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Agence", agenceId));
+
+        vehicule.setAgence(agence);
     }
 
     private void verifierVehicule(Vehicule vehicule) {
